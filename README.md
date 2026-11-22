@@ -1,5 +1,7 @@
 # AI Service Template
 
+[![tests](https://github.com/busnis887-design/ai-service-template/actions/workflows/tests.yml/badge.svg)](https://github.com/busnis887-design/ai-service-template/actions/workflows/tests.yml) ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 A production-minded **FastAPI** template for AI inference endpoints: API-key auth, per-key rate limiting, request IDs, structured logs, validation errors, health checks, and a grounded `/v1/ask` endpoint. Runs locally with no external services or API keys.
 
 ## Endpoints
