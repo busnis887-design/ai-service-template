@@ -13,10 +13,12 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from . import __version__
 from .config import Settings
+from .metrics import Metrics
 from .schemas import (
     AskRequest,
     AskResponse,
@@ -69,6 +71,14 @@ def create_app(
     app = FastAPI(title=settings.app_name, version=__version__)
     app.state.settings = settings
     app.state.auth = auth
+    app.state.metrics = Metrics()
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["X-API-Key", "X-Request-ID", "Content-Type"],
+    )
 
     @app.middleware("http")
     async def request_context(request: Request, call_next: Any) -> Any:
@@ -76,6 +86,8 @@ def create_app(
         started = time.perf_counter()
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+        duration_ms = (time.perf_counter() - started) * 1000
+        app.state.metrics.observe(request.url.path, response.status_code, duration_ms)
         logger.info(
             json.dumps(
                 {
@@ -83,7 +95,7 @@ def create_app(
                     "method": request.method,
                     "path": request.url.path,
                     "status": response.status_code,
-                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "duration_ms": round(duration_ms, 2),
                 }
             )
         )
@@ -96,9 +108,27 @@ def create_app(
             content={"detail": "Invalid request payload"},
         )
 
+    @app.exception_handler(Exception)
+    async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("unhandled error on %s", request.url.path)
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
     @app.get("/health", response_model=HealthResponse, tags=["ops"])
     async def health() -> HealthResponse:
         return HealthResponse(status="ok", version=__version__)
+
+    @app.get("/metrics", tags=["ops"])
+    async def metrics() -> PlainTextResponse:
+        return PlainTextResponse(app.state.metrics.render())
+
+    @app.get("/v1/models", tags=["inference"])
+    async def models(api_key: str = Depends(auth)) -> dict[str, Any]:
+        return {
+            "object": "list",
+            "data": [
+                {"id": "hashing-v1", "owned_by": "local", "dim": settings.embedding_dim}
+            ],
+        }
 
     @app.post("/v1/embed", response_model=EmbedResponse, tags=["inference"])
     async def embed_text(

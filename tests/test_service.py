@@ -73,5 +73,50 @@ class ServiceTests(unittest.TestCase):
             APIKeyAuth(Settings(api_keys="x", rate_limit_per_minute=0))
 
 
+class V02Tests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(
+            create_app(settings=Settings(api_keys="test-key", rate_limit_per_minute=100))
+        )
+        self.headers = {"X-API-Key": "test-key"}
+
+    def test_version(self):
+        from app import __version__
+
+        self.assertEqual(__version__, "0.2.0")
+
+    def test_models_endpoint(self):
+        response = self.client.get("/v1/models", headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"][0]["id"], "hashing-v1")
+
+    def test_metrics_endpoint(self):
+        self.client.get("/health")
+        response = self.client.get("/metrics")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("http_requests_total", response.text)
+
+    def test_cors_preflight(self):
+        response = self.client.options(
+            "/v1/ask",
+            headers={
+                "Origin": "https://example.com",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        self.assertIn("access-control-allow-origin", response.headers)
+
+    def test_unhandled_error_returns_json(self):
+        app = create_app(settings=Settings(api_keys="k", rate_limit_per_minute=100))
+
+        @app.get("/boom")
+        async def boom():
+            raise RuntimeError("boom")
+
+        response = TestClient(app, raise_server_exceptions=False).get("/boom")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"detail": "Internal server error"})
+
+
 if __name__ == "__main__":
     unittest.main()

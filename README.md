@@ -9,6 +9,8 @@ A production-minded **FastAPI** template for AI inference endpoints: API-key aut
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/health` | no | Liveness + version |
+| GET | `/metrics` | no | Prometheus-style request counters and latency |
+| GET | `/v1/models` | `X-API-Key` | Available inference models |
 | POST | `/v1/embed` | `X-API-Key` | Text → normalized vector |
 | POST | `/v1/ask` | `X-API-Key` | Grounded answer + ranked sources |
 
@@ -38,6 +40,14 @@ All settings use the `AI_SERVICE_` prefix and come from the environment:
 | `AI_SERVICE_RATE_LIMIT_PER_MINUTE` | `60` | Per-key sliding window |
 | `AI_SERVICE_EMBEDDING_DIM` | `256` | Hashing embedder dimension |
 | `AI_SERVICE_APP_NAME` | `AI Service Template` | OpenAPI title |
+
+## v0.2 highlights
+
+- `/metrics` exposes Prometheus-style counters and latency without extra dependencies.
+- `/v1/models` advertises available inference backends.
+- CORS middleware for browser clients.
+- Global exception handler returns consistent JSON 500 responses instead of HTML.
+- `Metrics.observe()` is called from request-ID middleware, so every route is measured.
 
 ## Design decisions
 
